@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP段提取与筛选工具</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 引入字体 -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',
+                        secondary: '#0E42D2',
+                        accent: '#4080FF',
+                        success: '#00B42A',
+                        dark: '#0A0F1F',
+                        'dark-card': '#111A30',
+                        'dark-light': '#1E2946',
+                        'text-primary': '#F9FBFF',
+                        'text-secondary': '#E0E7FF',
+                        'text-muted': '#94A3B8',
+                        'error': '#F53F3F',
+                        'warning': '#FF7D00',
+                        'transferred': '#00B42A', // 新增：已传递状态色
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'card': '0 6px 20px rgba(0, 10, 40, 0.2)',
+                        'btn': '0 4px 15px rgba(22, 93, 255, 0.15)',
+                        'input': '0 0 0 2px rgba(64, 128, 255, 0.25)',
+                    },
+                    borderRadius: {
+                        'card': '12px',
+                        'input': '8px',
+                        'btn': '8px',
+                        'tab': '8px',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .scrollbar-pro {
+                scrollbar-width: thin;
+            }
+            .scrollbar-pro::-webkit-scrollbar {
+                width: 6px;
+                height: 6px;
+            }
+            .scrollbar-pro::-webkit-scrollbar-track {
+                background: #111A30;
+                border-radius: 3px;
+            }
+            .scrollbar-pro::-webkit-scrollbar-thumb {
+                background: #1E2946;
+                border-radius: 3px;
+            }
+            .scrollbar-pro::-webkit-scrollbar-thumb:hover {
+                background: #4080FF;
+            }
+            .glass {
+                background: rgba(17, 26, 48, 0.7);
+                backdrop-filter: blur(8px);
+                border: 1px solid rgba(64, 128, 255, 0.1);
+            }
+            .card-gradient {
+                background: linear-gradient(135deg, #111A30 0%, #0A0F1F 100%);
+            }
+            .btn-pro {
+                position: relative;
+                overflow: hidden;
+                transition: all 0.2s ease;
+            }
+            .btn-pro:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(22, 93, 255, 0.25);
+            }
+            .btn-pro::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+                transition: left 0.6s ease;
+            }
+            .btn-pro:hover::before {
+                left: 100%;
+            }
+            .progress-pro {
+                height: 6px;
+                background: #1E2946;
+                border-radius: 3px;
+                overflow: hidden;
+            }
+            .progress-fill-pro {
+                height: 100%;
+                background: linear-gradient(90deg, #165DFF, #4080FF);
+                border-radius: 3px;
+                transition: width 0.3s ease;
+            }
+            .input-pro:focus {
+                box-shadow: var(--tw-shadow-input);
+                border-color: #4080FF;
+            }
+            .tab-pro-active {
+                background: #165DFF;
+                color: white;
+            }
+            .tab-pro-inactive {
+                background: #1E2946;
+                color: #94A3B8;
+            }
+            .tab-pro-inactive:hover {
+                background: #192540;
+                color: #E0E7FF;
+            }
+            /* 新增：已传递标签样式 */
+            .tab-pro-transferred {
+                background: rgba(0, 180, 42, 0.2);
+                border: 1px solid rgba(0, 180, 42, 0.3);
+                color: #00B42A;
+                position: relative;
+            }
+            .tab-pro-transferred::after {
+                content: '✓';
+                position: absolute;
+                right: 6px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 10px;
+                font-weight: bold;
+            }
+            .tab-pro-transferred:hover {
+                background: rgba(0, 180, 42, 0.3);
+            }
+            /* 选中+已传递的混合样式 */
+            .tab-pro-active-transferred {
+                background: linear-gradient(90deg, #165DFF 85%, #00B42A 15%);
+                color: white;
+                position: relative;
+            }
+            .tab-pro-active-transferred::after {
+                content: '✓';
+                position: absolute;
+                right: 6px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 10px;
+                font-weight: bold;
+            }
+        }
+    </style>
+</head>
+<body class="bg-dark min-h-screen text-text-primary font-inter antialiased">
+    <!-- 背景装饰 -->
+    <div class="fixed inset-0 z-0 opacity-20">
+        <div class="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full filter blur-3xl"></div>
+        <div class="absolute bottom-0 left-0 w-64 h-64 bg-accent/20 rounded-full filter blur-3xl"></div>
+    </div>
+    
+    <div class="container mx-auto px-4 py-6 max-w-7xl relative z-10">
+        <!-- 简化标题 -->
+        <header class="mb-6 text-center">
+            <h1 class="text-2xl md:text-3xl font-bold text-text-primary">IP段提取与筛选工具</h1>
+        </header>
+
+        <!-- 紧凑布局的主要内容 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 左侧：IP段输入面板（精简版） -->
+            <div class="card-gradient rounded-card shadow-card p-5 border border-dark-light/30 lg:col-span-1">
+                <!-- 面板标题 -->
+                <div class="flex items-center mb-4">
+                    <i class="fa fa-code-fork text-primary mr-2"></i>
+                    <h2 class="text-lg font-semibold">IP段输入</h2>
+                </div>
+                
+                <!-- 紧凑的分批设置 -->
+                <div class="mb-4">
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs text-text-secondary font-medium">每批解析IP数量</label>
+                        <span class="text-xs text-accent bg-primary/10 px-2 py-0.5 rounded-full">5000/批</span>
+                    </div>
+                    <div class="relative">
+                        <input type="number" id="batchSizeInput" value="5000" min="1000" max="10000" 
+                            class="w-full pl-8 pr-3 py-2 border border-dark-light/50 rounded-input glass input-pro text-sm text-text-primary">
+                        <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-text-muted">
+                            <i class="fa fa-sliders"></i>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- IP源输入（高度压缩） -->
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-xs text-text-secondary font-medium">CIDR网段列表</label>
+                        <span class="text-xs text-text-muted" id="sourceIpCount">22 个网段</span>
+                    </div>
+                    <textarea id="ipSourceInput" rows="10"
+                        class="w-full p-3 border border-dark-light/50 rounded-input glass input-pro scrollbar-pro text-sm text-text-primary placeholder:text-text-muted resize-none"
+                        placeholder="请输入CIDR网段列表，每行一个">103.21.244.0/22
+103.22.200.0/22
+103.31.4.0/22
+104.16.0.0/13
+104.24.0.0/14
+108.162.192.0/18
+131.0.72.0/22
+141.101.64.0/18
+162.158.0.0/15
+172.64.0.0/13
+173.245.48.0/20
+188.114.96.0/20
+190.93.240.0/20
+197.234.240.0/22
+198.41.128.0/17
+2400:cb00::/32
+2606:4700::/32
+2803:f800::/32
+2405:b500::/32
+2405:8100::/32
+2a06:98c0::/29
+2c0f:f248::/32</textarea>
+                </div>
+
+                <!-- 紧凑操作按钮 -->
+                <div class="flex gap-2 mb-3">
+                    <button id="parseIpBtn" class="flex-1 bg-primary text-white font-medium py-2 px-3 rounded-btn btn-pro shadow-btn text-sm">
+                        <i class="fa fa-play mr-1"></i>开始解析
+                    </button>
+                    <button id="stopParseBtn" class="flex-1 bg-error text-white font-medium py-2 px-3 rounded-btn btn-pro shadow-sm text-sm" disabled>
+                        <i class="fa fa-stop mr-1"></i>停止
+                    </button>
+                </div>
+
+                <!-- 精简进度条 -->
+                <div class="mb-3">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs text-text-secondary">解析进度</span>
+                        <span id="progressText" class="text-xs text-accent">0/0</span>
+                    </div>
+                    <div class="progress-pro">
+                        <div id="progressBar" class="progress-fill-pro" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- 简化状态提示 -->
+                <div id="ipParseStatus" class="text-xs text-text-muted glass p-2 rounded-input border border-dark-light/30">
+                    <i class="fa fa-check-circle text-success mr-1"></i>就绪，点击开始解析
+                </div>
+            </div>
+
+            <!-- 右侧：解析结果 + 替换工具（紧凑版） -->
+            <div class="card-gradient rounded-card shadow-card p-5 border border-dark-light/30 lg:col-span-2">
+                <!-- 精简结果统计 -->
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center">
+                        <i class="fa fa-list text-primary mr-2"></i>
+                        <h3 class="text-lg font-semibold">解析结果</h3>
+                    </div>
+                    <div class="flex gap-2">
+                        <span class="text-xs bg-dark-light/50 px-2 py-1 rounded-md">总计: <span id="totalIpCount" class="text-accent">0</span> IP</span>
+                        <span class="text-xs bg-dark-light/50 px-2 py-1 rounded-md">分组: <span id="groupCount" class="text-accent">0</span></span>
+                        <!-- 新增：已传递统计 -->
+                        <span class="text-xs bg-transferred/20 px-2 py-1 rounded-md">已传递: <span id="transferredCount" class="text-transferred">0</span></span>
+                    </div>
+                </div>
+
+                <!-- 紧凑分组切换 -->
+                <div class="mb-3 overflow-x-auto scrollbar-pro pb-1">
+                    <div id="groupTabs" class="flex gap-2">
+                        <button class="px-3 py-1.5 bg-dark-light/70 rounded-tab text-xs text-text-muted disabled:opacity-50" disabled>
+                            <i class="fa fa-folder-o mr-1"></i>暂无分组
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 解析结果展示（高度压缩） -->
+                <div class="relative h-48 mb-3">
+                    <textarea id="resultOutput" rows="10" readonly
+                        class="w-full h-full p-3 border border-dark-light/50 rounded-input glass input-pro scrollbar-pro text-sm text-text-primary placeholder:text-text-muted resize-none"
+                        placeholder="解析结果将显示在这里..."></textarea>
+                    <div class="absolute top-2 right-2 text-xs text-text-muted bg-dark-card/70 px-2 py-0.5 rounded-md">
+                        当前组: <span id="currentGroupIpCount">0</span> IP
+                        <!-- 新增：当前组传递状态 -->
+                        <span id="currentGroupStatus" class="ml-2 hidden text-transferred">✓ 已传递</span>
+                    </div>
+                </div>
+
+                <!-- 紧凑操作按钮 -->
+                <div class="flex gap-2 mb-4">
+                    <button id="copyAllBtn" class="flex-1 bg-dark-light text-text-primary font-medium py-2 px-3 rounded-btn text-xs transition-colors hover:bg-dark-hover disabled:opacity-50" disabled>
+                        <i class="fa fa-copy mr-1"></i>复制全部
+                    </button>
+                    <button id="downloadAllBtn" class="flex-1 bg-dark-light text-text-primary font-medium py-2 px-3 rounded-btn text-xs transition-colors hover:bg-dark-hover disabled:opacity-50" disabled>
+                        <i class="fa fa-download mr-1"></i>下载全部
+                    </button>
+                    <button id="copyCurrentBtn" class="flex-1 bg-dark-light text-text-primary font-medium py-2 px-3 rounded-btn text-xs transition-colors hover:bg-dark-hover disabled:opacity-50" disabled>
+                        <i class="fa fa-copy mr-1"></i>复制当前
+                    </button>
+                    <button id="transferCurrentBtn" class="flex-1 bg-primary text-white font-medium py-2 px-3 rounded-btn btn-pro text-xs disabled:opacity-50" disabled>
+                        <i class="fa fa-arrow-right mr-1"></i>传递
+                    </button>
+                </div>
+
+                <!-- 精简IP替换工具 -->
+                <div class="border-t border-dark-light/30 pt-4">
+                    <div class="flex items-center mb-3">
+                        <i class="fa fa-exchange text-primary mr-2"></i>
+                        <h3 class="text-lg font-semibold">IP批量替换</h3>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <!-- 替换配置（紧凑） -->
+                        <div>
+                            <div class="mb-2">
+                                <label class="text-xs text-text-secondary mb-1 block">代理模板</label>
+                                <textarea id="proxyTemplateInput" rows="3"
+                                    class="w-full p-2 border border-dark-light/50 rounded-input glass input-pro text-xs text-text-primary placeholder:text-text-muted resize-none"
+                                    placeholder="vless://uuid@IP:端口?参数#备注"
+                                >vless://fa40fa57-9498-46db-b347-975d38f3a06a@190.93.246.162:80?encryption=none&security=none&type=ws&host=white-hat-c4f4.slo825030.workers.dev&path=%2F%3Fed%3D2048#%E8%81%94%E9%80%9A-80-WS</textarea>
+                            </div>
+
+                            <div class="mb-2">
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="text-xs text-text-secondary">替换IP列表</label>
+                                    <span class="text-xs text-accent bg-primary/10 px-1.5 py-0.5 rounded-full" id="replaceIpCount">0</span>
+                                </div>
+                                <textarea id="replaceIpInput" rows="3"
+                                    class="w-full p-2 border border-dark-light/50 rounded-input glass input-pro text-xs text-text-primary placeholder:text-text-muted resize-none"
+                                    placeholder="解析后的IP将自动填充"></textarea>
+                            </div>
+
+                            <div class="flex gap-2">
+                                <button id="startReplaceBtn" class="flex-1 bg-primary text-white font-medium py-2 px-3 rounded-btn btn-pro text-xs">
+                                    <i class="fa fa-refresh mr-1"></i>开始替换
+                                </button>
+                                <button id="clearReplaceBtn" class="flex-1 bg-dark-light text-text-primary font-medium py-2 px-3 rounded-btn text-xs hover:bg-dark-hover">
+                                    <i class="fa fa-trash mr-1"></i>清空
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 替换结果（紧凑） -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <h4 class="text-sm font-medium">替换结果</h4>
+                                <button id="copyReplaceBtn" class="bg-dark-light text-text-primary text-xs py-1 px-2 rounded-btn hover:bg-dark-hover disabled:opacity-50" disabled>
+                                    <i class="fa fa-copy mr-1"></i>复制
+                                </button>
+                            </div>
+                            <div class="relative h-28">
+                                <div id="replaceResultContainer" class="w-full h-full overflow-y-auto p-2 scrollbar-pro text-xs text-text-primary bg-dark-light/20 rounded-input border border-dark-light/30">
+                                    <div class="text-text-muted text-center py-8">
+                                        <i class="fa fa-info-circle mr-1"></i>请先解析IP并替换
+                                    </div>
+                                </div>
+                                <div class="absolute bottom-1 right-1 text-xs text-text-muted bg-dark-card/70 px-1.5 py-0.5 rounded-md">
+                                    <span id="resultCount">0</span> 条
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 精简提示框 -->
+        <div id="toastMessage" class="fixed top-4 right-4 glass text-white px-4 py-2 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 flex items-center z-50">
+            <i class="fa fa-check-circle mr-2"></i>
+            <span class="text-sm">操作成功！</span>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // ========== DOM元素 ==========
+            const toastMessage = document.getElementById('toastMessage');
+            
+            // IP解析相关
+            const ipSourceInput = document.getElementById('ipSourceInput');
+            const batchSizeInput = document.getElementById('batchSizeInput');
+            const parseIpBtn = document.getElementById('parseIpBtn');
+            const stopParseBtn = document.getElementById('stopParseBtn');
+            const ipParseStatus = document.getElementById('ipParseStatus');
+            const sourceIpCount = document.getElementById('sourceIpCount');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            
+            // 结果展示相关
+            const resultOutput = document.getElementById('resultOutput');
+            const totalIpCount = document.getElementById('totalIpCount');
+            const groupCount = document.getElementById('groupCount');
+            const currentGroupIpCount = document.getElementById('currentGroupIpCount');
+            const groupTabs = document.getElementById('groupTabs');
+            const transferredCount = document.getElementById('transferredCount'); // 新增
+            const currentGroupStatus = document.getElementById('currentGroupStatus'); // 新增
+            
+            // 操作按钮
+            const copyAllBtn = document.getElementById('copyAllBtn');
+            const downloadAllBtn = document.getElementById('downloadAllBtn');
+            const copyCurrentBtn = document.getElementById('copyCurrentBtn');
+            const transferCurrentBtn = document.getElementById('transferCurrentBtn');
+            
+            // 替换工具相关
+            const proxyTemplateInput = document.getElementById('proxyTemplateInput');
+            const replaceIpInput = document.getElementById('replaceIpInput');
+            const startReplaceBtn = document.getElementById('startReplaceBtn');
+            const clearReplaceBtn = document.getElementById('clearReplaceBtn');
+            const replaceResultContainer = document.getElementById('replaceResultContainer');
+            const copyReplaceBtn = document.getElementById('copyReplaceBtn');
+            const replaceIpCount = document.getElementById('replaceIpCount');
+            const resultCount = document.getElementById('resultCount');
+
+            // ========== 全局变量 ==========
+            let ipGroups = [];
+            let currentGroupIndex = 0;
+            let isParsing = false;
+            let parseAbort = false;
+            let totalParsed = 0;
+            let totalSegments = 0;
+            let parsedSegments = 0;
+            let transferredGroups = []; // 新增：记录已传递的分组索引
+
+            // ========== 初始化 ==========
+            updateSourceCounter();
+            updateTransferredCount(); // 新增
+            
+            // ========== 事件监听 ==========
+            ipSourceInput.addEventListener('input', updateSourceCounter);
+            parseIpBtn.addEventListener('click', startBatchParsing);
+            stopParseBtn.addEventListener('click', stopParsing);
+            
+            copyAllBtn.addEventListener('click', copyAllIps);
+            downloadAllBtn.addEventListener('click', downloadAllIps);
+            copyCurrentBtn.addEventListener('click', copyCurrentGroup);
+            transferCurrentBtn.addEventListener('click', transferCurrentGroup);
+            
+            proxyTemplateInput.addEventListener('input', updateReplaceCounter);
+            replaceIpInput.addEventListener('input', updateReplaceCounter);
+            startReplaceBtn.addEventListener('click', replaceIpsInTemplate);
+            clearReplaceBtn.addEventListener('click', clearReplaceArea);
+            copyReplaceBtn.addEventListener('click', copyReplaceResults);
+
+            // ========== 核心函数 ==========
+            function updateSourceCounter() {
+                const lines = ipSourceInput.value.trim().split('\n').filter(line => line.trim() !== '');
+                sourceIpCount.textContent = `${lines.length} 个网段`;
+            }
+
+            // 新增：更新已传递统计
+            function updateTransferredCount() {
+                transferredCount.textContent = transferredGroups.length;
+            }
+
+            async function startBatchParsing() {
+                const source = ipSourceInput.value.trim();
+                const batchSize = parseInt(batchSizeInput.value, 10) || 5000;
+                
+                if (!source) {
+                    showToast('请输入CIDR网段列表！', 'error');
+                    return;
+                }
+
+                // 重置传递状态
+                transferredGroups = []; // 新增
+                updateTransferredCount(); // 新增
+                
+                isParsing = true;
+                parseAbort = false;
+                ipGroups = [];
+                currentGroupIndex = 0;
+                totalParsed = 0;
+                parsedSegments = 0;
+                
+                const lines = source.split(/\r?\n/).filter(line => line.trim());
+                totalSegments = lines.length;
+                
+                parseIpBtn.disabled = true;
+                stopParseBtn.disabled = false;
+                setStatusStyle('processing');
+                ipParseStatus.innerHTML = `<i class="fa fa-spinner fa-spin mr-1 text-warning"></i>解析中: ${parsedSegments}/${totalSegments}`;
+                updateProgress();
+                
+                let currentBatch = [];
+                
+                for (let i = 0; i < lines.length; i++) {
+                    if (parseAbort) break;
+                    
+                    const line = lines[i].trim().split('#')[0];
+                    parsedSegments = i + 1;
+                    
+                    ipParseStatus.innerHTML = `<i class="fa fa-spinner fa-spin mr-1 text-warning"></i>解析中: ${parsedSegments}/${totalSegments}`;
+                    updateProgress();
+                    
+                    let ips = [];
+                    if (line.includes('/') && !isIPv6(line)) {
+                        ips = cidrToIpv4(line, Infinity);
+                    } else if (isIPv6(line)) {
+                        ips = [line];
+                    } else if (/^\b(?:\d{1,3}\.){3}\d{1,3}\b$/.test(line)) {
+                        ips = [line];
+                    }
+                    
+                    for (const ip of ips) {
+                        currentBatch.push(ip);
+                        totalParsed++;
+                        
+                        if (currentBatch.length >= batchSize) {
+                            ipGroups.push([...currentBatch]);
+                            currentBatch = [];
+                            
+                            if (totalParsed % 1000 === 0) {
+                                updateResultUI();
+                                await new Promise(resolve => setTimeout(resolve, 10));
+                            }
+                        }
+                    }
+                    
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
+                
+                if (currentBatch.length > 0 && !parseAbort) {
+                    ipGroups.push(currentBatch);
+                }
+                
+                if (!parseAbort) {
+                    ipParseStatus.innerHTML = `<i class="fa fa-check-circle text-success mr-1"></i>完成: ${totalParsed} IP, ${ipGroups.length} 组`;
+                    setStatusStyle('success');
+                    showToast(`解析完成！${totalParsed}个IP，${ipGroups.length}组`);
+                } else {
+                    ipParseStatus.innerHTML = `<i class="fa fa-exclamation-circle text-error mr-1"></i>已终止: ${totalParsed} IP`;
+                    setStatusStyle('error');
+                    showToast('解析已终止！', 'error');
+                }
+                
+                updateResultUI();
+                parseIpBtn.disabled = false;
+                stopParseBtn.disabled = true;
+                isParsing = false;
+            }
+
+            function stopParsing() {
+                if (isParsing) {
+                    parseAbort = true;
+                    ipParseStatus.innerHTML = `<i class="fa fa-exclamation-triangle text-warning mr-1"></i>终止中...`;
+                    setStatusStyle('error');
+                }
+            }
+
+            function cidrToIpv4(cidr) {
+                try {
+                    const [ipStr, prefixStr] = cidr.split('/');
+                    const prefix = parseInt(prefixStr, 10);
+                    
+                    const ipParts = ipStr.split('.').map(Number);
+                    if (ipParts.length !== 4 || ipParts.some(part => isNaN(part) || part < 0 || part > 255)) {
+                        return [];
+                    }
+
+                    const ipInt = (ipParts[0] << 24) | (ipParts[1] << 16) | (ipParts[2] << 8) | ipParts[3];
+                    const mask = prefix === 0 ? 0 : 0xFFFFFFFF << (32 - prefix);
+                    const networkInt = ipInt & mask;
+                    const startInt = networkInt + 1;
+                    const endInt = (networkInt | (~mask & 0xFFFFFFFF)) - 1;
+
+                    const ips = [];
+                    let currentInt = startInt;
+                    const maxPerCidr = 65536;
+                    let count = 0;
+                    
+                    while (currentInt <= endInt && count < maxPerCidr) {
+                        const ip = [
+                            (currentInt >> 24) & 0xFF,
+                            (currentInt >> 16) & 0xFF,
+                            (currentInt >> 8) & 0xFF,
+                            currentInt & 0xFF
+                        ].join('.');
+                        ips.push(ip);
+                        currentInt++;
+                        count++;
+                    }
+                    
+                    return ips;
+                } catch (e) {
+                    console.error('解析CIDR失败:', cidr, e);
+                    return [];
+                }
+            }
+
+            function isIPv6(cidr) {
+                return /^([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{0,4}\/\d{1,3}$/.test(cidr);
+            }
+
+            function updateProgress() {
+                const progress = totalSegments > 0 ? (parsedSegments / totalSegments) * 100 : 0;
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `${parsedSegments}/${totalSegments}`;
+            }
+
+            function updateResultUI() {
+                totalIpCount.textContent = totalParsed;
+                groupCount.textContent = ipGroups.length;
+                
+                createGroupTabs();
+                showCurrentGroup();
+                
+                copyAllBtn.disabled = totalParsed === 0;
+                downloadAllBtn.disabled = totalParsed === 0;
+                copyCurrentBtn.disabled = ipGroups.length === 0;
+                transferCurrentBtn.disabled = ipGroups.length === 0;
+            }
+
+            // 优化：创建分组标签，添加传递状态样式
+            function createGroupTabs() {
+                groupTabs.innerHTML = '';
+                
+                if (ipGroups.length === 0) {
+                    const emptyTab = document.createElement('button');
+                    emptyTab.className = 'px-3 py-1.5 bg-dark-light/70 rounded-tab text-xs text-text-muted disabled:opacity-50';
+                    emptyTab.disabled = true;
+                    emptyTab.innerHTML = '<i class="fa fa-folder-o mr-1"></i>暂无分组';
+                    groupTabs.appendChild(emptyTab);
+                    return;
+                }
+                
+                ipGroups.forEach((group, index) => {
+                    const tab = document.createElement('button');
+                    
+                    // 判断标签样式：未传递/已传递/选中+已传递
+                    let tabClass = '';
+                    if (transferredGroups.includes(index)) {
+                        if (index === currentGroupIndex) {
+                            tabClass = 'tab-pro-active-transferred';
+                        } else {
+                            tabClass = 'tab-pro-transferred';
+                        }
+                    } else {
+                        if (index === currentGroupIndex) {
+                            tabClass = 'tab-pro-active';
+                        } else {
+                            tabClass = 'tab-pro-inactive';
+                        }
+                    }
+                    
+                    tab.className = `px-3 py-1.5 rounded-tab text-xs ${tabClass}`;
+                    tab.innerHTML = `<i class="fa fa-folder mr-1"></i>第${index + 1}组 (${group.length})`;
+                    tab.addEventListener('click', () => {
+                        currentGroupIndex = index;
+                        showCurrentGroup();
+                        createGroupTabs();
+                    });
+                    groupTabs.appendChild(tab);
+                });
+            }
+
+            // 优化：显示当前分组，更新传递状态提示
+            function showCurrentGroup() {
+                if (ipGroups.length === 0) {
+                    resultOutput.value = '';
+                    currentGroupIpCount.textContent = '0';
+                    currentGroupStatus.classList.add('hidden'); // 新增
+                    return;
+                }
+                
+                const currentGroup = ipGroups[currentGroupIndex];
+                resultOutput.value = currentGroup.join('\n');
+                currentGroupIpCount.textContent = currentGroup.length;
+                
+                // 显示/隐藏当前组传递状态
+                if (transferredGroups.includes(currentGroupIndex)) {
+                    currentGroupStatus.classList.remove('hidden');
+                } else {
+                    currentGroupStatus.classList.add('hidden');
+                }
+            }
+
+            // ========== 结果操作函数 ==========
+            function copyAllIps() {
+                if (totalParsed === 0) return;
+                
+                const allIps = ipGroups.flat().join('\n');
+                copyToClipboard(allIps);
+                showToast(`已复制全部${totalParsed}个IP！`);
+            }
+
+            function downloadAllIps() {
+                if (totalParsed === 0) return;
+                
+                const allIps = ipGroups.flat().join('\n');
+                downloadTextFile(allIps, 'IP列表.txt');
+                showToast(`已下载全部${totalParsed}个IP！`);
+            }
+
+            function copyCurrentGroup() {
+                if (ipGroups.length === 0) return;
+                
+                const currentGroup = ipGroups[currentGroupIndex];
+                copyToClipboard(currentGroup.join('\n'));
+                showToast(`已复制第${currentGroupIndex + 1}组${currentGroup.length}个IP！`);
+            }
+
+            // 优化：传递当前分组，记录传递状态
+            function transferCurrentGroup() {
+                if (ipGroups.length === 0) return;
+                
+                const currentGroup = ipGroups[currentGroupIndex];
+                replaceIpInput.value = currentGroup.join('\n');
+                updateReplaceCounter();
+                
+                // 记录已传递的分组
+                if (!transferredGroups.includes(currentGroupIndex)) {
+                    transferredGroups.push(currentGroupIndex);
+                    updateTransferredCount();
+                    createGroupTabs(); // 重新渲染标签以更新样式
+                    showCurrentGroup(); // 更新当前组状态提示
+                }
+                
+                showToast(`已传递第${currentGroupIndex + 1}组${currentGroup.length}个IP到替换工具！`);
+            }
+
+            // ========== IP替换工具函数 ==========
+            function updateReplaceCounter() {
+                const ipList = extractIpsFromInput(replaceIpInput.value);
+                replaceIpCount.textContent = ipList.length;
+                resultCount.textContent = replaceResults ? replaceResults.length : 0;
+                copyReplaceBtn.disabled = !replaceResults || replaceResults.length === 0;
+            }
+
+            function extractIpsFromInput(input) {
+                return input.trim()
+                    .split('\n')
+                    .filter(line => line.trim() !== '')
+                    .map(line => {
+                        if (line.includes(',')) {
+                            return line.split(',')[0].trim();
+                        }
+                        return line.trim();
+                    });
+            }
+
+            let replaceResults = [];
+            function replaceIpsInTemplate() {
+                const template = proxyTemplateInput.value.trim();
+                const ipList = extractIpsFromInput(replaceIpInput.value);
+
+                if (!template) {
+                    showToast('请输入代理模板！', 'error');
+                    return;
+                }
+
+                if (ipList.length === 0) {
+                    showToast('请先解析IP！', 'error');
+                    return;
+                }
+
+                const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+                const invalidIps = ipList.filter(ip => !ipRegex.test(ip.trim()) && !isIPv6(ip.trim()));
+                
+                if (invalidIps.length > 0) {
+                    showToast(`发现 ${invalidIps.length} 个无效IP！`, 'error');
+                    return;
+                }
+
+                const templateIpRegex = /@(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/;
+                const match = template.match(templateIpRegex);
+                
+                if (!match) {
+                    showToast('模板中未找到可替换的IP！', 'error');
+                    return;
+                }
+
+                const originalIp = match[1];
+                replaceResults = [];
+
+                ipList.forEach((ip, index) => {
+                    const replaced = template.replace(originalIp, ip.trim());
+                    replaceResults.push(replaced);
+                });
+
+                displayReplaceResults(replaceResults);
+                showToast(`生成${replaceResults.length}条替换结果！`);
+            }
+
+            function displayReplaceResults(results) {
+                replaceResultContainer.innerHTML = '';
+                
+                if (!results || results.length === 0) {
+                    replaceResultContainer.innerHTML = `<div class="text-text-muted text-center py-8"><i class="fa fa-info-circle mr-1"></i>请先解析IP并替换</div>`;
+                    resultCount.textContent = '0';
+                    copyReplaceBtn.disabled = true;
+                    return;
+                }
+
+                const resultList = document.createElement('div');
+                resultList.className = 'space-y-1';
+
+                results.forEach((result, index) => {
+                    const resultItem = document.createElement('div');
+                    resultItem.className = 'bg-dark-light/20 p-2 rounded text-xs';
+                    resultItem.textContent = result;
+                    resultList.appendChild(resultItem);
+                });
+
+                replaceResultContainer.appendChild(resultList);
+                resultCount.textContent = results.length;
+                copyReplaceBtn.disabled = false;
+            }
+
+            function clearReplaceArea() {
+                proxyTemplateInput.value = '';
+                replaceIpInput.value = '';
+                replaceResultContainer.innerHTML = `<div class="text-text-muted text-center py-8"><i class="fa fa-info-circle mr-1"></i>请先解析IP并替换</div>`;
+                replaceResults = [];
+                updateReplaceCounter();
+                showToast('替换区域已清空！');
+            }
+
+            function copyReplaceResults() {
+                if (!replaceResults || replaceResults.length === 0) return;
+                
+                const textToCopy = replaceResults.join('\n');
+                copyToClipboard(textToCopy);
+                showToast(`已复制${replaceResults.length}条结果！`);
+            }
+
+            // ========== 通用工具函数 ==========
+            function copyToClipboard(text) {
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(text).catch(err => {
+                            fallbackCopy(text);
+                        });
+                    } else {
+                        fallbackCopy(text);
+                    }
+                } catch (err) {
+                    console.error('复制失败:', err);
+                    showToast('复制失败！', 'error');
+                }
+            }
+
+            function fallbackCopy(text) {
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-999999px';
+                document.body.appendChild(textArea);
+                
+                textArea.focus();
+                textArea.select();
+                
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                if (!successful) {
+                    showToast('复制失败！', 'error');
+                }
+            }
+
+            function downloadTextFile(content, filename) {
+                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            }
+
+            function showToast(message, type = 'success') {
+                toastMessage.innerHTML = `
+                    <i class="fa ${type === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle'} mr-2"></i>
+                    <span class="text-sm">${message}</span>
+                `;
+                
+                toastMessage.className = `fixed top-4 right-4 glass px-4 py-2 rounded-lg shadow-lg transform transition-transform duration-300 flex items-center z-50 ${type === 'error' ? 'text-error border-error/20' : 'text-success border-success/20'}`;
+                
+                toastMessage.classList.remove('translate-x-full');
+                setTimeout(() => {
+                    toastMessage.classList.add('translate-x-full');
+                }, 3000);
+            }
+
+            function setStatusStyle(type) {
+                ipParseStatus.classList.remove('border-primary/20', 'border-success/20', 'border-error/20');
+                
+                switch(type) {
+                    case 'processing':
+                        ipParseStatus.classList.add('border-primary/20');
+                        break;
+                    case 'success':
+                        ipParseStatus.classList.add('border-success/20');
+                        break;
+                    case 'error':
+                        ipParseStatus.classList.add('border-error/20');
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
